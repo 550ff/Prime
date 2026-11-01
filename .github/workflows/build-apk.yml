@@ -1,5 +1,5 @@
 
-name: PRIME LAUNCHER - Phase 1 Baseline
+name: PRIME LAUNCHER - Build Debug APK
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -43,25 +43,32 @@ jobs:
           cache-disabled: true
           validate-wrappers: false
 
-      - name: Prepare and verify both Android projects
+      - name: Prepare PRIME source for debug build
+        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          files = [
-              Path("build.gradle"),
-              Path("companion/smartspace/build.gradle")
-          ]
+          root = Path("build.gradle")
+          companion = Path("companion/smartspace/build.gradle")
+          java = Path("src/com/hdeva/launcher/LeanUtils.java")
 
-          def remove_block(source, keyword):
-              start = source.find(keyword)
-              if start < 0:
-                  raise SystemExit("Missing block: " + keyword)
+          for p in (root, companion, java):
+              if not p.is_file():
+                  raise SystemExit("Required file missing: " + str(p))
 
-              brace = source.find("{", start)
+          def remove_block(source, name):
+              match = re.search(
+                  r'(?m)^[ \t]*' + re.escape(name) + r'\s*\{',
+                  source
+              )
+              if not match:
+                  raise SystemExit("Missing " + name + " block")
+
+              brace = source.find("{", match.start())
               depth = 0
-              end = -1
+              end = None
 
               for i in range(brace, len(source)):
                   if source[i] == "{":
@@ -72,58 +79,97 @@ jobs:
                           end = i + 1
                           break
 
-              if end < 0:
-                  raise SystemExit("Unclosed block: " + keyword)
+              if end is None:
+                  raise SystemExit("Unclosed " + name + " block")
 
-              return source[:start] + source[end:]
+              return source[:match.start()] + source[end:]
 
-          for p in files:
-              s = p.read_text()
+          # Prepare root Android project.
+          s = root.read_text()
 
-              if p == files[0]:
-                  s, count = re.subn(
-                      r"(aosp\s*\{\s*applicationId\s*)'[^']+'",
-                      r"\1'com.prime.launcher'",
-                      s,
-                      count=1
-                  )
-                  if count != 1:
-                      raise SystemExit("AOSP applicationId not found")
+          s, count = re.subn(
+              r"(aosp\s*\{\s*applicationId\s*)'[^']+'",
+              r"\1'com.prime.launcher'",
+              s,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit("Could not set AOSP application ID")
 
-                  s = s.replace(
-                      "mavenCentral()\n        jcenter()\n        google()",
-                      "google()\n        mavenCentral()\n        jcenter()"
-                  )
+          s = remove_block(s, "signingConfigs")
+          s = re.sub(
+              r'(?m)^[ \t]*signingConfig\s+signingConfigs\.lean\s*\n',
+              '',
+              s
+          )
 
-                  s = s.replace(
-                      "apply plugin: 'com.google.gms.google-services'",
-                      ""
-                  )
+          s = re.sub(
+              r'(?m)^[ \t]*classpath\s+[\'"]com\.google\.gms:google-services:[^\'"]+[\'"]\s*\n',
+              '',
+              s
+          )
+          s = s.replace(
+              "apply plugin: 'com.google.gms.google-services'",
+              ""
+          )
 
-                  s = re.sub(
-                      r'^\s*implementation "com\.google\.firebase:firebase-(core|crash):\$gms_version"\s*$',
-                      "",
-                      s,
-                      flags=re.M
-                  )
+          s = re.sub(
+              r'(?m)^[ \t]*implementation\s+[\'"]com\.google\.firebase:firebase-(?:core|crash):[^\'"]+[\'"]\s*\n',
+              '',
+              s
+          )
 
-              s = remove_block(s, "signingConfigs")
-              s = re.sub(
-                  r'^\s*signingConfig\s+signingConfigs\.lean\s*$',
-                  "",
-                  s,
-                  flags=re.M
-              )
+          if "LEAN_RELEASE_KEY_" in s or "signingConfigs.lean" in s:
+              raise SystemExit("Root private signing references remain")
 
-              if "LEAN_RELEASE_KEY_" in s or "signingConfigs.lean" in s:
-                  raise SystemExit(
-                      "Private signing reference remains in " + str(p)
-                  )
+          if "firebase-crash" in s or "google-services" in s:
+              raise SystemExit("Root Firebase build configuration remains")
 
-              p.write_text(s)
-              print("Verified:", p)
+          root.write_text(s)
 
-          print("Both projects are prepared.")
+          # Prepare companion project.
+          s = companion.read_text()
+          s = remove_block(s, "signingConfigs")
+          s = re.sub(
+              r'(?m)^[ \t]*signingConfig\s+signingConfigs\.lean\s*\n',
+              '',
+              s
+          )
+
+          if "LEAN_RELEASE_KEY_" in s or "signingConfigs.lean" in s:
+              raise SystemExit("Companion private signing references remain")
+
+          companion.write_text(s)
+
+          # Remove obsolete Firebase Crash source references.
+          s = java.read_text()
+
+          s, count = re.subn(
+              r'(?m)^import com\.google\.firebase\.crash\.FirebaseCrash;\s*\n',
+              '',
+              s
+          )
+          if count != 1:
+              raise SystemExit("FirebaseCrash import was not found exactly once")
+
+          s, count = re.subn(
+              r'FirebaseCrash\.report\(throwable\);',
+              'Log.e("Crashreporting", "Non-fatal exception", throwable);',
+              s
+          )
+          if count != 1:
+              raise SystemExit("FirebaseCrash report call was not found exactly once")
+
+          if "FirebaseCrash" in s:
+              raise SystemExit("FirebaseCrash reference still remains")
+
+          java.write_text(s)
+
+          print("Root project prepared.")
+          print("Companion project prepared.")
+          print("Firebase Crash source reference replaced with Android logging.")
+          print("AOSP application ID: com.prime.launcher")
+          print("All preparation checks passed.")
           PY
 
       - name: Build PRIME AOSP debug APK
@@ -132,6 +178,6 @@ jobs:
       - name: Upload PRIME APK
         uses: actions/upload-artifact@v4
         with:
-          name: PRIME-LAUNCHER-Phase1-Baseline
+          name: PRIME-LAUNCHER-DEBUG-APK
           path: build/outputs/apk/aosp/debug/*.apk
           if-no-files-found: error
