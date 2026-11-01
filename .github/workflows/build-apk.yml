@@ -15,11 +15,12 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 8
+      # Android SDK tools require Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -28,6 +29,13 @@ jobs:
         run: |
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-27" "build-tools;27.0.3"
+
+      # Legacy Gradle 4.4 and AGP 3.1 need Java 8
+      - name: Switch to JDK 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
 
       - name: Prepare PRIME baseline
         run: |
@@ -38,13 +46,11 @@ jobs:
           p = Path("build.gradle")
           s = p.read_text()
 
-          # Use Google Maven before legacy JCenter.
           s = s.replace(
               "mavenCentral()\n        jcenter()\n        google()",
               "google()\n        mavenCentral()\n        jcenter()"
           )
 
-          # Change only the AOSP flavor package.
           pattern = r"(aosp\s*\{\s*applicationId\s*)'[^']+'"
           s, count = re.subn(
               pattern,
@@ -53,9 +59,8 @@ jobs:
               count=1
           )
           if count != 1:
-              raise SystemExit("Could not safely identify AOSP applicationId")
+              raise SystemExit("Could not identify AOSP applicationId")
 
-          # Remove private release signing configuration.
           s, count = re.subn(
               r"    signingConfigs\s*\{\s*lean\s*\{.*?\n        \}\s*\}\s*",
               "",
@@ -64,19 +69,18 @@ jobs:
               flags=re.S
           )
           if count != 1:
-              raise SystemExit("Could not safely remove legacy signing block")
+              raise SystemExit("Could not remove legacy signing block")
 
-          # Debug build must use normal Android debug signing.
           s = s.replace(
               "            signingConfig signingConfigs.lean\n",
               ""
           )
 
-          # Firebase crash reporting is not needed for baseline.
           s = s.replace(
               "apply plugin: 'com.google.gms.google-services'",
               ""
           )
+
           s = re.sub(
               r'^\s*implementation "com\.google\.firebase:firebase-(core|crash):\$gms_version"\s*$',
               "",
@@ -98,4 +102,3 @@ jobs:
           name: PRIME-LAUNCHER-Phase1-Baseline
           path: build/outputs/apk/aosp/debug/*.apk
           if-no-files-found: error
-          
