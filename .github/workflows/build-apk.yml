@@ -15,7 +15,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 17 for Android SDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -30,11 +30,18 @@ jobs:
         run: |
           sdkmanager "platforms;android-27" "build-tools;27.0.3"
 
-      - name: Switch to JDK 8
+      - name: Switch to JDK 8 for legacy Android build
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '8'
+
+      - name: Install Gradle 4.4
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '4.4'
+          cache-disabled: true
+          validate-wrappers: false
 
       - name: Prepare PRIME baseline
         run: |
@@ -50,15 +57,14 @@ jobs:
               "google()\n        mavenCentral()\n        jcenter()"
           )
 
-          pattern = r"(aosp\s*\{\s*applicationId\s*)'[^']+'"
           s, count = re.subn(
-              pattern,
+              r"(aosp\s*\{\s*applicationId\s*)'[^']+'",
               r"\1'com.prime.launcher'",
               s,
               count=1
           )
           if count != 1:
-              raise SystemExit("Could not identify AOSP applicationId")
+              raise SystemExit("AOSP applicationId was not found")
 
           s, count = re.subn(
               r"    signingConfigs\s*\{\s*lean\s*\{.*?\n        \}\s*\}\s*",
@@ -68,7 +74,7 @@ jobs:
               flags=re.S
           )
           if count != 1:
-              raise SystemExit("Could not remove legacy signing block")
+              raise SystemExit("Legacy signing configuration was not found")
 
           s = s.replace(
               "            signingConfig signingConfigs.lean\n",
@@ -90,12 +96,10 @@ jobs:
           p.write_text(s)
           PY
 
-          chmod +x gradlew
+      - name: Build PRIME AOSP debug APK
+        run: gradle assembleAospDebug --stacktrace
 
-      - name: Build AOSP debug APK
-        run: ./gradlew assembleAospDebug --stacktrace
-
-      - name: Upload APK
+      - name: Upload PRIME APK
         uses: actions/upload-artifact@v4
         with:
           name: PRIME-LAUNCHER-Phase1-Baseline
