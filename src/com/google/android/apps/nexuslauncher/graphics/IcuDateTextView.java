@@ -6,21 +6,21 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.util.AttributeSet;
+import android.view.View;
 
-import com.android.launcher3.Utilities;
 import com.hdeva.launcher.LeanUtils;
 
 public class IcuDateTextView extends DoubleShadowTextView {
 
     private final BroadcastReceiver mTimeChangeReceiver;
-    private boolean mIsVisible = false;
+    private boolean mTimeReceiverRegistered = false;
 
-    public IcuDateTextView(final Context context) {
+    public IcuDateTextView(Context context) {
         this(context, null);
     }
 
-    public IcuDateTextView(final Context context, final AttributeSet set) {
-        super(context, set, 0);
+    public IcuDateTextView(Context context, AttributeSet attrs) {
+        super(context, attrs, 0);
 
         mTimeChangeReceiver = new BroadcastReceiver() {
             @Override
@@ -32,38 +32,71 @@ public class IcuDateTextView extends DoubleShadowTextView {
 
     public void reloadDateFormat() {
         String format = LeanUtils.formatDateTime(
-                getContext(), System.currentTimeMillis());
+                getContext(),
+                System.currentTimeMillis()
+        );
 
         setText(format);
         setContentDescription(format);
     }
 
+    private void updateTimeReceiver() {
+        if (mTimeChangeReceiver == null) {
+            return;
+        }
+
+        boolean shouldRegister = isShown();
+
+        if (shouldRegister && !mTimeReceiverRegistered) {
+            registerReceiver();
+            mTimeReceiverRegistered = true;
+            reloadDateFormat();
+
+        } else if (!shouldRegister && mTimeReceiverRegistered) {
+            unregisterReceiver();
+            mTimeReceiverRegistered = false;
+        }
+    }
+
     private void registerReceiver() {
-        IntentFilter intentFilter = new IntentFilter();
+        IntentFilter filter = new IntentFilter();
 
-        intentFilter.addAction(Intent.ACTION_TIME_TICK);
-        intentFilter.addAction(Intent.ACTION_TIME_CHANGED);
-        intentFilter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        filter.addAction(Intent.ACTION_TIME_TICK);
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
 
-        getContext().registerReceiver(mTimeChangeReceiver, intentFilter);
+        getContext().registerReceiver(mTimeChangeReceiver, filter);
     }
 
     private void unregisterReceiver() {
         getContext().unregisterReceiver(mTimeChangeReceiver);
     }
 
-    public void onVisibilityAggregated(boolean isVisible) {
-        if (Utilities.ATLEAST_NOUGAT) {
-            super.onVisibilityAggregated(isVisible);
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        updateTimeReceiver();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (mTimeReceiverRegistered) {
+            unregisterReceiver();
+            mTimeReceiverRegistered = false;
         }
 
-        if (!mIsVisible && isVisible) {
-            mIsVisible = true;
-            registerReceiver();
-            reloadDateFormat();
-        } else if (mIsVisible && !isVisible) {
-            unregisterReceiver();
-            mIsVisible = false;
-        }
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected void onVisibilityChanged(View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        updateTimeReceiver();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        updateTimeReceiver();
     }
 }
