@@ -1,0 +1,100 @@
+
+name: PRIME LAUNCHER - Phase 1 Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - o-mr1
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 27
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-27" "build-tools;27.0.3"
+
+      - name: Prepare PRIME baseline
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path("build.gradle")
+          s = p.read_text()
+
+          # Use Google Maven before legacy JCenter.
+          s = s.replace(
+              "mavenCentral()\n        jcenter()\n        google()",
+              "google()\n        mavenCentral()\n        jcenter()"
+          )
+
+          # Change only the AOSP flavor package.
+          pattern = r"(aosp\s*\{\s*applicationId\s*)'[^']+'"
+          s, count = re.subn(
+              pattern,
+              r"\1'com.prime.launcher'",
+              s,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit("Could not safely identify AOSP applicationId")
+
+          # Remove private release signing configuration.
+          s, count = re.subn(
+              r"    signingConfigs\s*\{\s*lean\s*\{.*?\n        \}\s*\}\s*",
+              "",
+              s,
+              count=1,
+              flags=re.S
+          )
+          if count != 1:
+              raise SystemExit("Could not safely remove legacy signing block")
+
+          # Debug build must use normal Android debug signing.
+          s = s.replace(
+              "            signingConfig signingConfigs.lean\n",
+              ""
+          )
+
+          # Firebase crash reporting is not needed for baseline.
+          s = s.replace(
+              "apply plugin: 'com.google.gms.google-services'",
+              ""
+          )
+          s = re.sub(
+              r'^\s*implementation "com\.google\.firebase:firebase-(core|crash):\$gms_version"\s*$',
+              "",
+              s,
+              flags=re.M
+          )
+
+          p.write_text(s)
+          PY
+
+          chmod +x gradlew
+
+      - name: Build AOSP debug APK
+        run: ./gradlew assembleAospDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRIME-LAUNCHER-Phase1-Baseline
+          path: build/outputs/apk/aosp/debug/*.apk
+          if-no-files-found: error
