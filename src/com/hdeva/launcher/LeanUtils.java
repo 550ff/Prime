@@ -41,8 +41,10 @@ import com.google.firebase.crash.FirebaseCrash;
 public class LeanUtils {
 
     private static final long WAIT_BEFORE_RESTART = 250;
-    private static final LeanDoubleTapToLockRegistry REGISTRY = new LeanDoubleTapToLockRegistry();
-    private static final String GOOGLE_QSB = "com.google.android.googlequicksearchbox";
+    private static final LeanDoubleTapToLockRegistry REGISTRY =
+            new LeanDoubleTapToLockRegistry();
+    private static final String GOOGLE_QSB =
+            "com.google.android.googlequicksearchbox";
     private static final int WHITE = 0xffffffff;
 
     public static void reload(Context context) {
@@ -54,73 +56,96 @@ public class LeanUtils {
     }
 
     public static void restart(final Context context) {
-        ProgressDialog.show(context, null, context.getString(R.string.restarting), true, false);
-        new LooperExecutor(LauncherModel.getWorkerLooper()).execute(new Runnable() {
-            @SuppressLint("ApplySharedPref")
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(WAIT_BEFORE_RESTART);
-                } catch (Exception e) {
-                    Log.e("SettingsActivity", "Error waiting", e);
-                }
+        ProgressDialog.show(
+                context, null, context.getString(R.string.restarting),
+                true, false);
 
-                Intent intent = new Intent(Intent.ACTION_MAIN)
-                        .addCategory(Intent.CATEGORY_HOME)
-                        .setPackage(context.getPackageName())
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        new LooperExecutor(LauncherModel.getWorkerLooper())
+                .execute(new Runnable() {
+                    @SuppressLint("ApplySharedPref")
+                    @Override
+                    public void run() {
+                        try {
+                            Thread.sleep(WAIT_BEFORE_RESTART);
+                        } catch (Exception e) {
+                            Log.e("SettingsActivity", "Error waiting", e);
+                        }
 
-                PendingIntent pendingIntent = PendingIntent.getActivity(
-                        context, 0, intent,
-                        PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT);
+                        Intent intent = new Intent(Intent.ACTION_MAIN)
+                                .addCategory(Intent.CATEGORY_HOME)
+                                .setPackage(context.getPackageName())
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
-                AlarmManager alarmManager =
-                        (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                        PendingIntent pendingIntent = PendingIntent.getActivity(
+                                context,
+                                0,
+                                intent,
+                                PendingIntent.FLAG_CANCEL_CURRENT
+                                        | PendingIntent.FLAG_ONE_SHOT);
 
-                alarmManager.setExact(
-                        AlarmManager.ELAPSED_REALTIME,
-                        SystemClock.elapsedRealtime() + 50,
-                        pendingIntent);
+                        AlarmManager alarmManager =
+                                (AlarmManager) context.getSystemService(
+                                        Context.ALARM_SERVICE);
 
-                android.os.Process.killProcess(android.os.Process.myPid());
-            }
-        });
+                        alarmManager.setExact(
+                                AlarmManager.ELAPSED_REALTIME,
+                                SystemClock.elapsedRealtime() + 50,
+                                pendingIntent);
+
+                        android.os.Process.killProcess(
+                                android.os.Process.myPid());
+                    }
+                });
     }
 
     public static int getAllAppsQsbTopOffset(Context context) {
         int statusBar = getStatusBarHeight(context);
-        int topTranslationY = context.getResources().getDimensionPixelSize(
-                R.dimen.all_apps_qsb_top_translation_y);
-        int topOffset = context.getResources().getDimensionPixelOffset(
-                R.dimen.all_apps_qsb_top_offset);
+
+        int topTranslationY =
+                context.getResources().getDimensionPixelSize(
+                        R.dimen.all_apps_qsb_top_translation_y);
+
+        int topOffset =
+                context.getResources().getDimensionPixelOffset(
+                        R.dimen.all_apps_qsb_top_offset);
 
         int height;
+
         if (context.getResources().getConfiguration().orientation
                 == Configuration.ORIENTATION_PORTRAIT) {
             height = statusBar - topTranslationY + topOffset;
         } else {
             height = topOffset;
         }
+
         return height;
     }
 
     public static int getStatusBarHeight(Context context) {
         int height;
+
         int resourceId = context.getResources().getIdentifier(
                 "status_bar_height", "dimen", "android");
 
         if (resourceId > 0) {
-            height = context.getResources().getDimensionPixelSize(resourceId);
+            height = context.getResources().getDimensionPixelSize(
+                    resourceId);
         } else {
             height = context.getResources().getDimensionPixelSize(
                     R.dimen.status_bar_height);
         }
+
         return height;
     }
 
-    public static void handleWorkspaceTouchEvent(Launcher launcher, MotionEvent ev) {
+    public static void handleWorkspaceTouchEvent(
+            Launcher launcher, MotionEvent ev) {
+
         REGISTRY.add(ev);
-        if (LeanSettings.isDoubleTapToLockEnabled(launcher) && REGISTRY.shouldLock()) {
+
+        if (LeanSettings.isDoubleTapToLockEnabled(launcher)
+                && REGISTRY.shouldLock()) {
+
             if (LeanSettings.isDoubleTapToLockSecure(launcher)) {
                 secureLock(launcher);
             } else {
@@ -135,16 +160,24 @@ public class LeanUtils {
                         Context.DEVICE_POLICY_SERVICE);
 
         if (devicePolicyManager != null) {
-            if (devicePolicyManager.isAdminActive(adminComponent(context))) {
+            if (devicePolicyManager.isAdminActive(
+                    adminComponent(context))) {
+
                 devicePolicyManager.lockNow();
+
             } else {
-                Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                Intent intent = new Intent(
+                        DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+
                 intent.putExtra(
                         DevicePolicyManager.EXTRA_DEVICE_ADMIN,
                         adminComponent(context));
+
                 intent.putExtra(
                         DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                        context.getString(R.string.double_tap_to_lock_hint));
+                        context.getString(
+                                R.string.double_tap_to_lock_hint));
+
                 context.startActivity(intent);
             }
         }
@@ -155,8 +188,12 @@ public class LeanUtils {
             if (Settings.System.canWrite(launcher)) {
                 LeanTimeoutActivity.startTimeout(launcher);
             } else {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
-                intent.setData(Uri.parse("package:" + launcher.getPackageName()));
+                Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_WRITE_SETTINGS);
+
+                intent.setData(Uri.parse(
+                        "package:" + launcher.getPackageName()));
+
                 launcher.startActivity(intent);
             }
         } else {
@@ -165,14 +202,19 @@ public class LeanUtils {
     }
 
     public static void startQuickSearch(final Launcher launcher) {
-        final String provider = LeanSettings.getSearchProvider(launcher);
+        final String provider =
+                LeanSettings.getSearchProvider(launcher);
 
         if (provider.contains("google")) {
             Point point = new Point(0, 0);
 
-            Intent intent = new Intent("com.google.nexuslauncher.FAST_TEXT_SEARCH")
-                    .setPackage("com.google.android.googlequicksearchbox")
-                    .addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY | Intent.FLAG_ACTIVITY_NEW_TASK)
+            Intent intent = new Intent(
+                    "com.google.nexuslauncher.FAST_TEXT_SEARCH")
+                    .setPackage(
+                            "com.google.android.googlequicksearchbox")
+                    .addFlags(
+                            Intent.FLAG_ACTIVITY_NO_HISTORY
+                                    | Intent.FLAG_ACTIVITY_NEW_TASK)
                     .putExtra("source_round_left", true)
                     .putExtra("source_round_right", true)
                     .putExtra("source_logo_offset", point)
@@ -181,65 +223,95 @@ public class LeanUtils {
 
             intent.setSourceBounds(new Rect());
 
-            launcher.sendOrderedBroadcast(intent, null,
+            launcher.sendOrderedBroadcast(
+                    intent,
+                    null,
                     new BroadcastReceiver() {
                         @Override
-                        public void onReceive(Context context, Intent intent) {
-                            Log.e("HotseatQsbSearch",
-                                    getResultCode() + " " + getResultData());
+                        public void onReceive(
+                                Context context, Intent intent) {
+
+                            Log.e(
+                                    "HotseatQsbSearch",
+                                    getResultCode() + " "
+                                            + getResultData());
 
                             if (getResultCode() == 0) {
                                 try {
                                     launcher.startActivity(
-                                            new Intent("com.google.android.googlequicksearchbox.TEXT_ASSIST")
-                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                                                            | Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                            new Intent(
+                                                    "com.google.android.googlequicksearchbox.TEXT_ASSIST")
+                                                    .addFlags(
+                                                            Intent.FLAG_ACTIVITY_NEW_TASK
+                                                                    | Intent.FLAG_ACTIVITY_CLEAR_TASK)
                                                     .setPackage(GOOGLE_QSB));
+
                                 } catch (ActivityNotFoundException e) {
                                     try {
-                                        launcher.getPackageManager().getPackageInfo(
-                                                GOOGLE_QSB, 0);
+                                        launcher.getPackageManager()
+                                                .getPackageInfo(
+                                                        GOOGLE_QSB, 0);
 
-                                        LauncherAppsCompat.getInstance(launcher)
+                                        LauncherAppsCompat.getInstance(
+                                                        launcher)
                                                 .showAppDetailsForProfile(
                                                         new ComponentName(
                                                                 GOOGLE_QSB,
                                                                 ".SearchActivity"),
                                                         Process.myUserHandle());
-                                    } catch (PackageManager.NameNotFoundException ignored) {
-                                        launcher.startActivity(new Intent(
-                                                Intent.ACTION_VIEW,
-                                                Uri.parse(provider)));
+
+                                    } catch (
+                                            PackageManager.NameNotFoundException ignored) {
+
+                                        launcher.startActivity(
+                                                new Intent(
+                                                        Intent.ACTION_VIEW,
+                                                        Uri.parse(provider)));
                                     }
                                 }
                             }
                         }
-                    }, null, 0, null, null);
+                    },
+                    null,
+                    0,
+                    null,
+                    null);
+
         } else {
-            launcher.startActivity(new Intent(
-                    Intent.ACTION_VIEW, Uri.parse(provider)));
+            launcher.startActivity(
+                    new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(provider)));
         }
     }
 
     public static void startVoiceSearch(Launcher launcher) {
         try {
             launcher.startActivity(
-                    new Intent("android.intent.action.VOICE_ASSIST")
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                                    | Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    new Intent(
+                            "android.intent.action.VOICE_ASSIST")
+                            .addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK
+                                            | Intent.FLAG_ACTIVITY_CLEAR_TASK)
                             .setPackage(GOOGLE_QSB));
+
         } catch (ActivityNotFoundException e) {
             try {
-                launcher.getPackageManager().getPackageInfo(GOOGLE_QSB, 0);
+                launcher.getPackageManager().getPackageInfo(
+                        GOOGLE_QSB, 0);
 
                 LauncherAppsCompat.getInstance(launcher)
                         .showAppDetailsForProfile(
-                                new ComponentName(GOOGLE_QSB, ".SearchActivity"),
+                                new ComponentName(
+                                        GOOGLE_QSB,
+                                        ".SearchActivity"),
                                 Process.myUserHandle());
+
             } catch (PackageManager.NameNotFoundException ignored) {
-                launcher.startActivity(new Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://google.com")));
+                launcher.startActivity(
+                        new Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://google.com")));
             }
         }
     }
@@ -260,7 +332,8 @@ public class LeanUtils {
         try {
             FirebaseCrash.report(throwable);
         } catch (Throwable inner) {
-            Log.e("Crashreporting",
+            Log.e(
+                    "Crashreporting",
                     "Error trying to report non-fatal event");
         }
     }
@@ -274,7 +347,9 @@ public class LeanUtils {
 
         try {
             if (drawable instanceof BitmapDrawable) {
-                BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
+                BitmapDrawable bitmapDrawable =
+                        (BitmapDrawable) drawable;
+
                 if (bitmapDrawable.getBitmap() != null) {
                     return bitmapDrawable.getBitmap();
                 }
@@ -282,8 +357,10 @@ public class LeanUtils {
 
             if (drawable.getIntrinsicWidth() <= 0
                     || drawable.getIntrinsicHeight() <= 0) {
+
                 bitmap = Bitmap.createBitmap(
                         1, 1, Bitmap.Config.ARGB_8888);
+
             } else {
                 bitmap = Bitmap.createBitmap(
                         drawable.getIntrinsicWidth(),
@@ -292,8 +369,14 @@ public class LeanUtils {
             }
 
             Canvas canvas = new Canvas(bitmap);
-            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+
+            drawable.setBounds(
+                    0, 0,
+                    canvas.getWidth(),
+                    canvas.getHeight());
+
             drawable.draw(canvas);
+
         } catch (Throwable t) {
             bitmap = null;
         }
@@ -301,29 +384,46 @@ public class LeanUtils {
         return bitmap;
     }
 
-    public static int extractAdaptiveBackgroundFromBitmap(Bitmap bitmap) {
+    public static int extractAdaptiveBackgroundFromBitmap(
+            Bitmap bitmap) {
+
         int background;
 
         try {
             Palette palette = Palette.from(bitmap).generate();
 
             if (palette.getLightMutedSwatch() != null) {
-                background = palette.getLightMutedSwatch().getRgb();
+                background =
+                        palette.getLightMutedSwatch().getRgb();
+
             } else if (palette.getMutedSwatch() != null) {
-                background = palette.getMutedSwatch().getRgb();
+                background =
+                        palette.getMutedSwatch().getRgb();
+
             } else if (palette.getLightVibrantSwatch() != null) {
-                background = palette.getLightVibrantSwatch().getRgb();
+                background =
+                        palette.getLightVibrantSwatch().getRgb();
+
             } else if (palette.getVibrantSwatch() != null) {
-                background = palette.getVibrantSwatch().getRgb();
+                background =
+                        palette.getVibrantSwatch().getRgb();
+
             } else if (palette.getDarkVibrantSwatch() != null) {
-                background = palette.getDarkVibrantSwatch().getRgb();
+                background =
+                        palette.getDarkVibrantSwatch().getRgb();
+
             } else if (palette.getDarkMutedSwatch() != null) {
-                background = palette.getDarkMutedSwatch().getRgb();
+                background =
+                        palette.getDarkMutedSwatch().getRgb();
+
             } else if (palette.getDominantSwatch() != null) {
-                background = palette.getDominantSwatch().getRgb();
+                background =
+                        palette.getDominantSwatch().getRgb();
+
             } else {
                 background = WHITE;
             }
+
         } catch (Throwable t) {
             background = WHITE;
         }
@@ -331,29 +431,41 @@ public class LeanUtils {
         return background;
     }
 
-    public static String formatDateTime(Context context, long timeInMillis) {
+    public static String formatDateTime(
+            Context context, long timeInMillis) {
+
         try {
             String format = LeanSettings.getDateFormat(context);
             int flags;
 
-            if (format.equals(context.getString(R.string.date_format_long))) {
+            if (format.equals(
+                    context.getString(R.string.date_format_long))) {
+
                 flags = DateUtils.FORMAT_SHOW_WEEKDAY
                         | DateUtils.FORMAT_SHOW_DATE;
-            } else if (format.equals(context.getString(R.string.date_format_short))) {
+
+            } else if (format.equals(
+                    context.getString(R.string.date_format_short))) {
+
                 flags = DateUtils.FORMAT_SHOW_WEEKDAY
                         | DateUtils.FORMAT_SHOW_DATE
                         | DateUtils.FORMAT_ABBREV_MONTH
                         | DateUtils.FORMAT_ABBREV_WEEKDAY;
+
             } else {
                 flags = DateUtils.FORMAT_SHOW_WEEKDAY
                         | DateUtils.FORMAT_SHOW_DATE
                         | DateUtils.FORMAT_ABBREV_MONTH;
             }
 
-            return DateUtils.formatDateTime(context, timeInMillis, flags);
+            return DateUtils.formatDateTime(
+                    context, timeInMillis, flags);
+
         } catch (Throwable t) {
-            Log.e("LeanUtils",
-                    "Error formatting At A Glance date", t);
+            Log.e(
+                    "LeanUtils",
+                    "Error formatting At A Glance date",
+                    t);
 
             return DateUtils.formatDateTime(
                     context,
@@ -366,98 +478,4 @@ public class LeanUtils {
 
     private LeanUtils() {
     }
-}
-   }
-    }
-
-    private static ComponentName adminComponent(Context context) {
-        return new ComponentName(context, LeanDeviceAdmin.class);
-    }
-
-    public static Bitmap drawableToBitmap(Drawable drawable) {
-        Bitmap bitmap;
-
-        try {
-            if (drawable instanceof BitmapDrawable) {
-                BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
-                if (bitmapDrawable.getBitmap() != null) {
-                    return bitmapDrawable.getBitmap();
-                }
-            }
-
-            if (drawable.getIntrinsicWidth() <= 0 || drawable.getIntrinsicHeight() <= 0) {
-                bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888); // Single color bitmap will be created of 1x1 pixel
-            } else {
-                bitmap = Bitmap.createBitmap(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-            }
-
-            Canvas canvas = new Canvas(bitmap);
-            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            drawable.draw(canvas);
-        } catch (Throwable t) {
-            bitmap = null;
-        }
-        return bitmap;
-    }
-
-    public static int extractAdaptiveBackgroundFromBitmap(Bitmap bitmap) {
-        int background;
-        try {
-            Palette palette = Palette.from(bitmap).generate();
-            if (palette.getLightMutedSwatch() != null) {
-                background = palette.getLightMutedSwatch().getRgb();
-            } else if (palette.getMutedSwatch() != null) {
-                background = palette.getMutedSwatch().getRgb();
-            } else if (palette.getLightVibrantSwatch() != null) {
-                background = palette.getLightVibrantSwatch().getRgb();
-            } else if (palette.getVibrantSwatch() != null) {
-                background = palette.getVibrantSwatch().getRgb();
-            } else if (palette.getDarkVibrantSwatch() != null) {
-                background = palette.getDarkVibrantSwatch().getRgb();
-            } else if (palette.getDarkMutedSwatch() != null) {
-                background = palette.getDarkMutedSwatch().getRgb();
-            } else if (palette.getDominantSwatch() != null) {
-                background = palette.getDominantSwatch().getRgb();
-            } else {
-                background = WHITE;
-            }
-        } catch (Throwable t) {
-            background = WHITE;
-        }
-        return background;
-    }
-
-    public static String formatDateTime(Context context, long timeInMillis) {
-        try {
-            String format = LeanSettings.getDateFormat(context);
-            String formattedDate;
-            if (Utilities.ATLEAST_NOUGAT) {
-                DateFormat dateFormat = DateFormat.getInstanceForSkeleton(format, Locale.getDefault());
-                dateFormat.setContext(DisplayContext.CAPITALIZATION_FOR_STANDALONE);
-                formattedDate = dateFormat.format(timeInMillis);
-            } else {
-                int flags;
-                if (format.equals(context.getString(R.string.date_format_long))) {
-                    flags = DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE;
-                } else if (format.equals(context.getString(R.string.date_format_normal))) {
-                    flags = DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
-                } else if (format.equals(context.getString(R.string.date_format_short))) {
-                    flags = DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH | DateUtils.FORMAT_ABBREV_WEEKDAY;
-                } else {
-                    flags = DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH;
-                }
-
-                formattedDate = DateUtils.formatDateTime(context, timeInMillis, flags);
-            }
-            return formattedDate;
-        } catch (Throwable t) {
-            LeanUtils.reportNonFatal(new Exception("Error formatting At A Glance date", t));
-            return DateUtils.formatDateTime(context, timeInMillis, DateUtils.FORMAT_SHOW_WEEKDAY | DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH);
-        }
-    }
-
-    private LeanUtils() {
-
-    }
-
 }
