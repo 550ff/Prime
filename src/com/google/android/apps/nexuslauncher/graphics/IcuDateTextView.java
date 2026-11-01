@@ -13,7 +13,9 @@ import com.hdeva.launcher.LeanUtils;
 public class IcuDateTextView extends DoubleShadowTextView {
 
     private final BroadcastReceiver mTimeChangeReceiver;
+
     private boolean mTimeReceiverRegistered = false;
+    private boolean mRequestedVisible = false;
 
     public IcuDateTextView(Context context) {
         this(context, null);
@@ -40,12 +42,17 @@ public class IcuDateTextView extends DoubleShadowTextView {
         setContentDescription(format);
     }
 
-    private void updateTimeReceiver() {
-        if (mTimeChangeReceiver == null) {
-            return;
-        }
+    /*
+     * SmartspaceView calls this method directly on Android 5.1.
+     * Keep this method, but do not call the API-24 superclass method.
+     */
+    public void onVisibilityAggregated(boolean isVisible) {
+        mRequestedVisible = isVisible;
+        updateTimeReceiver();
+    }
 
-        boolean shouldRegister = isShown();
+    private void updateTimeReceiver() {
+        boolean shouldRegister = mRequestedVisible && isShown();
 
         if (shouldRegister && !mTimeReceiverRegistered) {
             registerReceiver();
@@ -89,7 +96,10 @@ public class IcuDateTextView extends DoubleShadowTextView {
     }
 
     @Override
-    protected void onVisibilityChanged(View changedView, int visibility) {
+    protected void onVisibilityChanged(
+            View changedView,
+            int visibility
+    ) {
         super.onVisibilityChanged(changedView, visibility);
         updateTimeReceiver();
     }
